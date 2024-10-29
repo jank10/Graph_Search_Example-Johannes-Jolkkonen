@@ -1,1 +1,0 @@
-MERGE (a:Person {id: "ellaSmith"}) MERGE (b:SlackMessage {id: "e1bfefdef"}) MERGE (a)-[:SENT]->(b) - Exception: {code: Neo.ClientError.Security.Unauthorized} {message: The client is unauthorized due to authentication failure.}

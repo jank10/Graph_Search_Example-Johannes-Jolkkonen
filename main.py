@@ -2,10 +2,11 @@ import streamlit as st
 from streamlit_chat import message
 from timeit import default_timer as timer
 
-from langchain.graphs import Neo4jGraph
+from langchain_community.graphs import Neo4jGraph
 from langchain.chains import GraphCypherQAChain
 from langchain.prompts.prompt import PromptTemplate
-from langchain.chat_models import AzureChatOpenAI
+#from langchain.chat_models import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 
 import dotenv
 import os
@@ -13,23 +14,24 @@ import os
 dotenv.load_dotenv()
 
 # OpenAI API configuration
-llm = AzureChatOpenAI(
-    deployment_name = "chat-gpt4",
-    openai_api_base = os.getenv("OPENAI_API_BASE"),
-    openai_api_version = os.getenv("OPENAI_API_VERSION"),
-    openai_api_key = os.getenv("OPENAI_API_KEY"),
-    openai_api_type = "azure",
-    temperature = 0
+
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo-0125",                
+    temperature=0,                
+    #max_tokens=1500,
+    openai_api_key=os.getenv("OPENAI_API_KEY")
 )
 
+
 #Neo4j configuration
-neo4j_url = os.getenv("NEO4J_CONNECTION_URL")
-neo4j_user = os.getenv("NEO4J_USER")
+neo4j_uri = os.getenv("NEO4J_URI")
+neo4j_user = os.getenv("NEO4J_USERNAME")
 neo4j_password = os.getenv("NEO4J_PASSWORD")
 
 # Cypher generation prompt
 cypher_generation_template = """
 You are an expert Neo4j Cypher translator who converts English to Cypher based on the Neo4j Schema provided, following the instructions below:
+0. Your main focus is to write queries that identify people within the knowledge graph
 1. Generate Cypher query compatible ONLY for Neo4j Version 5
 2. Do not use EXISTS, SIZE, HAVING keywords in the cypher. Use alias when using the WITH keyword
 3. Use only Nodes and relationships mentioned in the schema
@@ -74,14 +76,15 @@ qa_prompt = PromptTemplate(
 )
 
 def query_graph(user_input):
-    graph = Neo4jGraph(url=neo4j_url, username=neo4j_user, password=neo4j_password)
+    graph = Neo4jGraph(url=neo4j_uri, username=neo4j_user, password=neo4j_password)
     chain = GraphCypherQAChain.from_llm(
         llm=llm,
         graph=graph,
         verbose=True,
         return_intermediate_steps=True,
         cypher_prompt=cypher_prompt,
-        qa_prompt=qa_prompt
+        qa_prompt=qa_prompt,
+        allow_dangerous_requests=True
         )
     result = chain(user_input)
     return result
@@ -97,15 +100,20 @@ if "system_msgs" not in st.session_state:
 title_col, empty_col, img_col = st.columns([2, 1, 2])    
 
 with title_col:
-    st.title("Conversational Neo4J Assistant")
-with img_col:
-    st.image("https://dist.neo4j.com/wp-content/uploads/20210423062553/neo4j-social-share-21.png", width=200)
+    st.title("Neo4J Graph Query Assistant")
+
+#not needed at the moment
+#with img_col:
+#    st.image("https://dist.neo4j.com/wp-content/uploads/20210423062553/neo4j-social-share-21.png", width=200)
 
 user_input = st.text_input("Enter your question", key="input")
 if user_input:
     with st.spinner("Processing your question..."):
         st.session_state.user_msgs.append(user_input)
-        start = timer()
+        #start = timer()
+
+        cypher_query = None
+        database_results = None
 
         try:
             result = query_graph(user_input)
@@ -120,7 +128,26 @@ if user_input:
             st.write("Failed to process question. Please try again.")
             print(e)
 
-    st.write(f"Time taken: {timer() - start:.2f}s")
+        # try:
+        #     result = query_graph(user_input)
+    
+        #     intermediate_steps = result.get("intermediate_steps", [])
+        #     if len(intermediate_steps) >= 2:
+        #         cypher_query = intermediate_steps[0].get("query", "")
+        #         database_results = intermediate_steps[1].get("context", "")
+        #     else:
+        #         raise ValueError("Unexpected structure in intermediate steps")
+
+        #     answer = result["result"]
+        #     st.session_state.system_msgs.append(answer)
+        # except Exception as e:
+        #     st.write("Failed to process question. Please try again.")
+        #     st.error(f"Failed to process question. Exception: {e}")
+
+    
+    
+    #not needed for now
+    #st.write(f"Time taken: {timer() - start:.2f}s")
 
     col1, col2, col3 = st.columns([1, 1, 1])
 
